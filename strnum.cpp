@@ -17,9 +17,10 @@
 		byte 0     byte 1     byte 2     byte ...
 		10010001 , 1110100. , ........ , ........
 */
-#ifndef _GLIBCXX_VECTOR
-#include <bits/stdc++.h>
-#endif
+#include <cstring>
+#include <malloc.h>
+#include <vector>
+#include <algorithm>
 #include "strnum.h"
 #ifdef byte
 #undef byte
@@ -30,16 +31,16 @@ using namespace std;
 
 //print error
 bool isErrorOpen = true;
-strnum_io strnum_io2(2),strnum_io8(8),strnum_io10(10),strnum_io16(16);
+const strnum_io strnum_io2(2),strnum_io8(8),strnum_io10(10),strnum_io16(16);
 [[noreturn]] static void error(int mode){
 	if(isErrorOpen) switch(mode){
-		case 1: printf("Error! The number system is not include in the support list.");break;
-		case 2: printf("Error! The inf is too big that make no mobile.");break;
-		case 3: printf("Error! The ptr of wherebegin is a cross address.");break;
-		case 4: printf("Error! You can not log to 0 or minus.");break;
-		case 5: printf("Error! You can not devide or mod to 0.");break;
+		case 1: printf("Error! The number system is not include in the support list.\n");break;
+		case 2: printf("Error! The inf is too big that make no memory.\n");break;
+		case 3: printf("Error! The ptr of wherebegin is a cross address.\n");break;
+		case 4: printf("Error! You can not log to 0 or minus.\n");break;
+		case 5: printf("Error! You can not devide or mod to 0.\n");break;
 	}
-	exit(1);
+	throw(0xf0 | mode);
 }
 
 //some little fuctions which can change the type of number or check if it is number
@@ -89,14 +90,13 @@ static bool is_number(int nms,char chr){
 
 //get number system and sign
 struct RtStru{
-	bool RtSign;
-	int RtNms;
-	char RtChr;
-	RtStru(){
-		RtSign = false;
-		RtNms = 2;
-		RtChr = '0';
-	}
+	bool RtSign = false;
+	int RtNms = 2;
+	char RtChr = '0';
+};
+struct RtPair{
+	bool first = false;
+	char second = '0';
 };
 //auto get
 static RtStru getSystemMode(bool isPoint = false){ //All of directly return rtstc is mean the number is 0.
@@ -186,8 +186,8 @@ static RtStru getSystemMode(bool isPoint = false){ //All of directly return rtst
 	}
 }
 //unauto get
-static pair<bool,char> getSign(int nms,bool isPoint = false){
-	pair<bool,char> rtpir;
+static RtPair getSign(int nms,bool isPoint = false){
+	RtPair rtpir;
 	bool sign = false;
 	bool flag1 = false,flag2 = false;
 	char chr;
@@ -245,17 +245,6 @@ static void printVector(vector<int> x){
 	return;
 }
 
-//iostream
-[[nodiscard]] strnum_stream_io* strnum_io::operator[](strnum &x){
-	strnum_stream_io *ssi_ptr = new strnum_stream_io(&x,this->numsys);
-	return ssi_ptr;
-}
-
-//gain bit
-[[nodiscard]] strnum_bitaddress& strnum::operator()(int x,int bit){
-	return *(new strnum_bitaddress((unsigned char*)this->ptrhead + x,bit));
-}
-
 //give and free from cpu
 strnum::strnum(){
 	this->ptrhead = malloc(strnum_inf);
@@ -265,7 +254,7 @@ strnum::strnum(){
 	return;
 }
 strnum::~strnum(){
-	if(this->ptrhead)
+	if(this->ptrhead && this->doFree())
 		free(this->ptrhead);
 	this->ptrhead = NULL;
 	return;
@@ -278,15 +267,9 @@ void strnum::soutln(int numSystemMode){
 	return;
 }
 
-//return bytes
-inline unsigned char& strnum::operator[](int x){
-	return *((unsigned char*)this->ptrhead + x);
-}
-
 //stream in (cin)
-std::istream& operator>>(std::istream &ifs,strnum_stream_io *ssi_ptr){
-	ssi_ptr->ptr->gain(ssi_ptr->numsys);
-	delete ssi_ptr;
+std::istream& operator>>(std::istream &ifs,strnum_stream_io ssi){
+	ssi.ptr->gain(ssi.numsys);
 	return ifs;
 }
 std::istream& operator>>(std::istream &ifs,strnum &x){
@@ -295,9 +278,8 @@ std::istream& operator>>(std::istream &ifs,strnum &x){
 }
 
 //stream out (cout)
-std::ostream& operator<<(std::ostream &ofs,strnum_stream_io *ssi_ptr){
-	ssi_ptr->ptr->sout(ssi_ptr->numsys);
-	delete ssi_ptr;
+std::ostream& operator<<(std::ostream &ofs,strnum_stream_io ssi){
+	ssi.ptr->sout(ssi.numsys);
 	return ofs;
 }
 std::ostream& operator<<(std::ostream &ofs,strnum &x){
@@ -310,7 +292,7 @@ std::ostream& operator<<(std::ostream &ofs,strnum &x){
 //copy constructor
 strint::strint(const strint &x):strnum(){
 	this->lenth = x.lenth;
-	this->sign = x.sign;
+	this->sign() = x.sign();
 	for(int i=0;i<this->lenth;i++){
 		*((char*)this->ptrhead + i) = *((char*)x.ptrhead + i);
 	}
@@ -320,8 +302,9 @@ strint::strint(const strint &x):strnum(){
 //move construtor
 strint::strint(strint &&x){
 	this->lenth = x.lenth;
-	this->sign = x.sign;
+	this->sign() = x.sign();
 	this->ptrhead = x.ptrhead;
+	this->doFree() = x.doFree();
 	x.ptrhead = NULL;
 	return;
 }
@@ -332,15 +315,16 @@ strint operator-(const strint &x){
 		return x;
 	strint y;
 	y = x;
-	y.sign = !y.sign;
+	y.sign() = !y.sign();
 	return y;
 }
 
 //clean the class
 void strint::clean(){
 	this->lenth = 0;
-	this->sign = false;
-	memset(this->ptrhead,0,strnum_inf);
+	this->sign() = false;
+	if(this->doFree())
+		memset(this->ptrhead,0,strnum_inf);
 	return;
 }
 
@@ -359,23 +343,23 @@ void strint::gain(int numSystemMode){
 		nms = rtstc.RtNms;
 		chr = rtstc.RtChr;
 		if(chr=='0'){
-			this->sign = false;
+			this->sign() = false;
 			this->lenth = 1;
 			*((char*)ptrhead) = 0;
 			return;
 		}
-		this->sign = rtstc.RtSign;
+		this->sign() = rtstc.RtSign;
 	}else{		//unauto gain
-		pair<bool,char> rtpir = getSign(numSystemMode);
+		RtPair rtpir = getSign(numSystemMode);
 		nms = numSystemMode;
 		chr = rtpir.second;
 		if(chr=='0'){
-			this->sign = false;
+			this->sign() = false;
 			this->lenth = 1;
 			*((char*)ptrhead) = 0;
 			return;
 		}
-		this->sign = rtpir.first;
+		this->sign() = rtpir.first;
 	}
 	
 	//read the remain number
@@ -511,7 +495,7 @@ void strint::sout(int nms){
 		printf("0");
 		return;
 	}
-	if(this->sign)
+	if(this->sign())
 		printf("-");
 	//for 2:
 	if(nms == 2){
@@ -682,10 +666,12 @@ void strint::sout(int nms){
 
 //give the value
 void strint::operator=(const strint &x){
+	if(&x == this)
+		return;
 	this->clean();
 	char *ptrx = (char*)x.ptrhead;
 	this->lenth = x.lenth;
-	this->sign = x.sign;
+	this->sign() = x.sign();
 	for(int i=0;i<x.lenth;i++){
 		char *nowptr = (char*)this->ptrhead + i;
 		*nowptr = *ptrx;
@@ -694,11 +680,13 @@ void strint::operator=(const strint &x){
 	return;
 }
 void strint::operator=(strint &&x){
+	if(&x == this)
+		return;
 	this->clean();
-	if(this->ptrhead)
+	if(this->ptrhead && this->doFree())
 		free(this->ptrhead);
 	this->lenth = x.lenth;
-	this->sign = x.sign;
+	this->sign() = x.sign();
 	this->ptrhead = x.ptrhead;
 	x.ptrhead = NULL;
 	return;
@@ -706,15 +694,15 @@ void strint::operator=(strint &&x){
 void strint::operator=(long long x){
 	this->clean();
 	if(x == 0){
-		this->sign = false;
+		this->sign() = false;
 		this->lenth = 1;
 		*(char*)(this->ptrhead) = 0;
 		return;
 	}else if(x < 0){
-		this->sign = true;
+		this->sign() = true;
 		x--;
 		x = ~x;
-	}else this->sign = false;
+	}else this->sign() = false;
 	
 	int i=0;
 	while(x){
@@ -733,7 +721,7 @@ long long strint::stoi(){
 		unsigned char nowbyte = *((char*)(this->ptrhead) + i);
 		ans |= (long long)(nowbyte) << (8*i);
 	}
-	long long numsign = (this->sign?-1:1);
+	long long numsign = (this->sign()?-1:1);
 	ans *= numsign;
 	return ans;
 }
@@ -745,8 +733,8 @@ strflt strint::strc_strflt(){
 	}
 	strflt ans;
 	ans.clean();
-	ans.is_0 = false;
-	ans.sign = this->sign;
+	ans.is_0() = false;
+	ans.sign() = this->sign();
 	ans.index = this->log2(true);
 	int highbit;
 	unsigned char highbyte = *((unsigned char*)this->ptrhead + this->lenth -1);
@@ -782,7 +770,7 @@ strflt strint::strc_strflt(){
 
 // logv2 operation
 int strint::log2(bool ignoreSign){
-	if((this->lenth == 1 && *(char*)(this->ptrhead) == 0) || (this->sign && !ignoreSign)){
+	if((this->lenth == 1 && *(char*)(this->ptrhead) == 0) || (this->sign() && !ignoreSign)){
 		if(isErrorOpen)
 			error(4);
 		else
@@ -804,7 +792,7 @@ int strint::log2(bool ignoreSign){
 
 //some lojic operations
 bool operator==(const strint &x,const strint &y){
-	if(x.sign != y.sign){
+	if(x.sign() != y.sign()){
 		return false;
 	}
 	if(x.lenth != y.lenth){
@@ -822,8 +810,8 @@ bool operator!=(const strint &x,const strint &y){
 	return !(x == y);
 }
 bool operator>(const strint &x,const strint &y){
-	if(x.sign != y.sign){
-		if(x.sign)
+	if(x.sign() != y.sign()){
+		if(x.sign())
 			return false;
 		else
 			return true;
@@ -853,11 +841,11 @@ bool operator>(const strint &x,const strint &y){
 	return false;
 	
 	solve_return:
-	return x.sign?(!absbs):absbs;
+	return x.sign()?(!absbs):absbs;
 }
 bool operator<(const strint &x,const strint &y){
-	if(x.sign != y.sign){
-		if(x.sign)
+	if(x.sign() != y.sign()){
+		if(x.sign())
 			return true;
 		else
 			return false;
@@ -887,7 +875,7 @@ bool operator<(const strint &x,const strint &y){
 	return false;
 	
 	solve_return:
-	return x.sign?(!absbs):absbs;
+	return x.sign()?(!absbs):absbs;
 }
 bool operator>=(const strint &x,const strint &y){
 	return !(x < y);
@@ -1011,12 +999,12 @@ strint unsigned_plus(const strint &in1,const strint &in2){
 		x = in1;
 		y = in2;
 	}
-	x.sign = false;
-	y.sign = false;
+	x.sign() = false;
+	y.sign() = false;
 	
 	strint ans;
 	ans.clean();
-	ans.sign = false;
+	ans.sign() = false;
 	
 	//plus per byte
 	bool flag = false; // if it plus 1 from last byte
@@ -1099,11 +1087,11 @@ strint unsigned_subtract(const strint &in1,const strint &in2){
 		ans = 0;
 		return ans;
 	}else if(in1 < in2){ // x > y
-		ans.sign = true;
+		ans.sign() = true;
 		x = in2;
 		y = in1;
 	}else{
-		ans.sign = false;
+		ans.sign() = false;
 		x = in1;
 		y = in2;
 	}
@@ -1183,13 +1171,13 @@ strint unsigned_subtract(const strint &in1,const strint &in2){
 
 //plus
 strint operator+(const strint &x,const strint &y){
-	if(x.sign != y.sign){
-		if(!x.sign)
+	if(x.sign() != y.sign()){
+		if(!x.sign())
 			return unsigned_subtract(x,y);
 		else
 			return -unsigned_subtract(x,y);
 	}else{
-		if(!x.sign)
+		if(!x.sign())
 			return unsigned_plus(x,y);
 		else
 			return -unsigned_plus(x,y);
@@ -1202,13 +1190,13 @@ void operator+=(strint &x,const strint &y){
 
 //subtract
 strint operator-(const strint &x,const strint &y){
-	if(x.sign == y.sign){
-		if(!x.sign)
+	if(x.sign() == y.sign()){
+		if(!x.sign())
 			return unsigned_subtract(x,y);
 		else
 			return -unsigned_subtract(x,y);
 	}else{
-		if(!x.sign)
+		if(!x.sign())
 			return unsigned_plus(x,y);
 		else
 			return -unsigned_plus(x,y);
@@ -1226,14 +1214,14 @@ strint operator*(const strint &in1,const strint &in2){
 	_0 = 0;
 	strint x,y;
 	x = in1;y = in2;
-	x.sign = false,y.sign = false;
+	x.sign() = false,y.sign() = false;
 	if(x == _0 || y == _0)
 		return _0;
 	if(x < y){ //x >= y
 		x = in2;y = in1;
-		x.sign = false,y.sign = false;
+		x.sign() = false,y.sign() = false;
 	}
-	bool finsign = (in1.sign != in2.sign);
+	bool finsign = (in1.sign() != in2.sign());
 
 	//prevent use ~strnum
 	strint ans;
@@ -1253,7 +1241,7 @@ strint operator*(const strint &in1,const strint &in2){
 			xlm <<= 1;
 		}
 	}
-	ans.sign = finsign;
+	ans.sign() = finsign;
 	return ans;
 }
 void operator*=(strint &x,const strint &y){
@@ -1263,12 +1251,12 @@ void operator*=(strint &x,const strint &y){
 
 //devide
 strint operator/(const strint &in1,const strint &in2){
-	bool finsign = (in1.sign != in2.sign);
+	bool finsign = (in1.sign() != in2.sign());
 	strint _0,ans;
 	_0 = 0 ; ans = 0;
 	strint x,y;
 	x = in1 ; y = in2;
-	x.sign = false ; y.sign = false;
+	x.sign() = false ; y.sign() = false;
 	if(y == _0) error(5);
 	if(x < y) return _0;
 	
@@ -1294,7 +1282,7 @@ strint operator/(const strint &in1,const strint &in2){
 		}
 	}while(rbit >= 0 && x > _0);
 
-	ans.sign = finsign;
+	ans.sign() = finsign;
 	return ans;
 }
 void operator/=(strint &x,const strint &y){
@@ -1304,15 +1292,15 @@ void operator/=(strint &x,const strint &y){
 
 //mod
 strint operator%(const strint &in1,const strint &in2){
-	bool finsign = in1.sign;
+	bool finsign = in1.sign();
 	strint x,y;
 	x = in1 ; y = in2;
-	x.sign = false ; y.sign = false;
+	x.sign() = false ; y.sign() = false;
 	strint ans;
 	ans = x / y;
 	ans = ans * y;
 	ans = x - ans;
-	ans.sign = finsign;
+	ans.sign() = finsign;
 	return ans;
 }
 void operator%=(strint &x,const strint &y){
@@ -1333,9 +1321,9 @@ const int strflt::deviation = 16;
 strflt::strflt(const strflt &x):strnum(){
 	this->lenth = x.lenth;
 	this->index = x.index;
-	this->sign = x.sign;
-	this->is_0 = x.is_0;
-	if(!this->is_0 && this->lenth)
+	this->sign() = x.sign();
+	this->is_0() = x.is_0();
+	if(!this->is_0() && this->lenth)
 		for(int i=0;i<this->lenth;i++)
 			*((char*)this->ptrhead + i) = *((char*)x.ptrhead + i);
 	return;
@@ -1345,27 +1333,28 @@ strflt::strflt(const strflt &x):strnum(){
 strflt::strflt(strflt &&x){
 	this->lenth = x.lenth;
 	this->index = x.index;
-	this->sign = x.sign;
-	this->is_0 = x.is_0;
+	this->sign() = x.sign();
+	this->is_0() = x.is_0();
 	this->ptrhead = x.ptrhead;
+	this->doFree() = x.doFree();
 	x.ptrhead = NULL;
 	return;
 }
 
 //give opposite number
 strflt operator-(const strflt &x){
-	if(x.is_0)
+	if(x.is_0())
 		return x;
 	strflt ans = x;
-	ans.sign = !(ans.sign);
+	ans.sign() = !(ans.sign());
 	return ans;
 }
 
 //clean the class
 void strflt::clean(){
-	this->is_0 = false;
+	this->is_0() = false;
 	this->lenth = 0;
-	this->sign = false;
+	this->sign() = false;
 	this->index = 0;
 	if(this->ptrhead)
 		memset(this->ptrhead,0,strnum_inf);
@@ -1388,45 +1377,45 @@ void strflt::gain(int numSystemMode){
 		nms = rtstc.RtNms;
 		chr = rtstc.RtChr;
 		if(chr=='0'){
-			this->sign = false;
+			this->sign() = false;
 			this->lenth = 0;
-			this->is_0 = true;
+			this->is_0() = true;
 			this->index = 0;
 			return;
 		}else if(chr == '.'){
 			hasPoint = true;
 			chr = getchar();
 			if(!is_number(nms,chr)){
-				this->sign = false;
+				this->sign() = false;
 				this->lenth = 0;
-				this->is_0 = true;
+				this->is_0() = true;
 				this->index = 0;
 				return;
 			}
 		}
-		this->sign = rtstc.RtSign;
+		this->sign() = rtstc.RtSign;
 	}else{		//unauto gain
-		pair<bool,char> rtpir = getSign(numSystemMode,true);
+		RtPair rtpir = getSign(numSystemMode,true);
 		nms = numSystemMode;
 		chr = rtpir.second;
 		if(chr=='0'){
-			this->sign = false;
+			this->sign() = false;
 			this->lenth = 0;
-			this->is_0 = true;
+			this->is_0() = true;
 			this->index = 0;
 			return;
 		}else if(chr == '.'){
 			hasPoint = true;
 			chr = getchar();
 			if(!is_number(nms,chr)){
-				this->sign = false;
+				this->sign() = false;
 				this->lenth = 0;
-				this->is_0 = true;
+				this->is_0() = true;
 				this->index = 0;
 				return;
 			}
 		}
-		this->sign = rtpir.first;
+		this->sign() = rtpir.first;
 	}
 
 	//read the remain number
@@ -1452,9 +1441,9 @@ void strflt::gain(int numSystemMode){
 	while(mantissa.size() && mantissa[mantissa.size()-1] == 0)
 		mantissa.pop_back();
 	if(sum.size() == 0 && mantissa.size() == 0){
-		this->sign = false;
+		this->sign() = false;
 		this->lenth = 0;
-		this->is_0 = true;
+		this->is_0() = true;
 		this->index = 0;
 		return;
 	}
@@ -1676,11 +1665,11 @@ void strflt::sout(int numSystemMode){
 	if(numSystemMode!=2&&numSystemMode!=8&&numSystemMode!=10&&numSystemMode!=16){
 		error(1);
 	}
-	if(this->is_0){
+	if(this->is_0()){
 		printf("0");
 		return;
 	}
-	if(this->sign){
+	if(this->sign()){
 		printf("-");
 	}
 
@@ -1836,7 +1825,7 @@ void strflt::sout(int numSystemMode){
 		}
 
 		//mantissa piece
-		while(mantissabyte != this->lenth){
+		while(mantissabyte < this->lenth){
 			unsigned char nowbyte = *((unsigned char*)this->ptrhead + mantissabyte);
 			if(mantissabit == 0){
 				int k = nowbyte & 1;
@@ -2027,7 +2016,7 @@ void strflt::sout(int numSystemMode){
 		}
 
 		//mantissa piece
-		while(mantissabyte != this->lenth){
+		while(mantissabyte < this->lenth){
 			unsigned char nowbyte = *((unsigned char*)this->ptrhead + mantissabyte);
 			unsigned char nxtbyte = *((unsigned char*)this->ptrhead + mantissabyte + 1);
 			if(mantissabit == 2){
@@ -2179,14 +2168,16 @@ void strflt::sout(int numSystemMode){
 		if(this->index > 0){
 			strint sint;
 			sint = this->strc_strint();
-			sint.sign = false;
+			sint.sign() = false;
 			sint.sout(10);
 			int k = this->index >> 3;
 			int cnt = this->index & 7;
 			if(!this->lenth || this->lenth == k || (this->lenth-1 == k && !((*((unsigned char*)this->ptrhead + k) << cnt) & 255)))
 				return;
-			printf(".");
 			put_mantissa((char*)this->ptrhead + k,cnt);
+			if(!mantissa.size())
+				return;
+			printf(".");
 		}
 
 		//it can record the bit's 10 number
@@ -2248,22 +2239,26 @@ void strflt::sout(int numSystemMode){
 
 //give the value
 void strflt::operator=(const strflt &x){
+	if(&x == this)
+		return;
 	this->clean();
 	this->index = x.index;
-	this->is_0 = x.is_0;
+	this->is_0() = x.is_0();
 	this->lenth = x.lenth;
-	this->sign = x.sign;
-	if(!this->is_0 && this->lenth)
+	this->sign() = x.sign();
+	if(!this->is_0() && this->lenth)
 		for(int i=0;i<this->lenth;i++)
 			*((unsigned char*)this->ptrhead + i) = *((unsigned char*)x.ptrhead + i);
 	return;
 }
 void strflt::operator=(strflt &&x){
+	if(&x == this)
+		return;
 	this->clean();
 	this->index = x.index;
-	this->is_0 = x.is_0;
+	this->is_0() = x.is_0();
 	this->lenth = x.lenth;
-	this->sign = x.sign;
+	this->sign() = x.sign();
 	if(this->ptrhead)
 		free(this->ptrhead);
 	this->ptrhead = x.ptrhead;
@@ -2273,19 +2268,19 @@ void strflt::operator=(strflt &&x){
 void strflt::operator=(long long x){
 	this->clean();
 	if(x == 0){
-		this->sign = false;
+		this->sign() = false;
 		this->lenth = 0;
-		this->is_0 = true;
+		this->is_0() = true;
 		this->index = 0;
 		return;
-	}else this->is_0 = false;
+	}else this->is_0() = false;
 
 	if(x < 0){
-		this->sign = true;
+		this->sign() = true;
 		x--;
 		x = ~x;
 	}else{
-		this->sign = false;
+		this->sign() = false;
 	}
 
 	int highbit,lowbit;
@@ -2322,12 +2317,12 @@ void strflt::operator=(float x){
 	void *vp = &x;
 	unsigned int num = *(int*)vp;
 	if(x == 0){
-		this->is_0 = true;
+		this->is_0() = true;
 		this->lenth = 0;
-		this->sign = false;
+		this->sign() = false;
 		this->index = 0;
 		return;
-	}else this->is_0 = false;
+	}else this->is_0() = false;
 	
 	//give index
 	unsigned int k1 = num;
@@ -2342,9 +2337,9 @@ void strflt::operator=(float x){
 	k3 <<= 9;
 	k3 >>= 9;
 	if(x < 0)
-		this->sign = true;
+		this->sign() = true;
 	else 
-		this->sign = false;
+		this->sign() = false;
 	
 	this->lenth = 3;
 	k3 <<= 1;
@@ -2358,12 +2353,12 @@ void strflt::operator=(double x){
 	void *vp = &x;
 	unsigned long long num = *(long long*)vp;
 	if(x == 0){
-		this->is_0 = true;
+		this->is_0() = true;
 		this->lenth = 0;
-		this->sign = false;
+		this->sign() = false;
 		this->index = 0;
 		return;
-	}else this->is_0 = false;
+	}else this->is_0() = false;
 	
 	//give index
 	unsigned long long k1 = num;
@@ -2378,9 +2373,9 @@ void strflt::operator=(double x){
 	k3 <<= 12;
 	k3 >>= 12;
 	if(x < 0)
-		this->sign = true;
+		this->sign() = true;
 	else 
-		this->sign = false;
+		this->sign() = false;
 	
 	this->lenth = 7;
 	k3 <<= 4;
@@ -2395,19 +2390,19 @@ void strflt::operator=(double x){
 }
 strint strflt::strc_strint(){
 	strint ans;
-	if(this->is_0){
-		ans.sign = false;
+	if(this->is_0()){
+		ans.sign() = false;
 		ans.lenth = 1;
 		*(unsigned char*)ans.ptrhead = 0;
 		return ans;
 	}
-	ans.sign = false;
+	ans.sign() = false;
 	ans.lenth = this->lenth + 1;
 	for(int i=0;i<this->lenth;i++)
 		*((unsigned char*)ans.ptrhead + i) = *((unsigned char*)this->ptrhead + this->lenth - i - 1);
 	*((unsigned char*)ans.ptrhead + this->lenth) = 1;
 	ans >>= (ans.log2() - this->index);
-	ans.sign = this->sign;
+	ans.sign() = this->sign();
 	return ans;
 }
 long long strflt::stoi(){
@@ -2417,8 +2412,8 @@ long long strflt::stoi(){
 	return ans;
 }
 float strflt::stof(){
-	if(this->is_0)
-		return 0.0;
+	if(this->is_0())
+		return 0.0f;
 	int ansi = 0;
 	int idx = this->index;
 	idx += 127;
@@ -2434,12 +2429,12 @@ float strflt::stof(){
 	ansi |= idx;
 	void *vp = &ansi;
 	float ans = *(float*)vp;
-	if(this->sign)
+	if(this->sign())
 		ans = -ans;
 	return ans;
 }
 double strflt::stod(){
-	if(this->is_0)
+	if(this->is_0())
 		return 0.0;
 	long long ansi = 0;
 	long long idx = this->index;
@@ -2456,21 +2451,21 @@ double strflt::stod(){
 	ansi |= idx;
 	void *vp = &ansi;
 	double ans = *(double*)vp;
-	if(this->sign)
+	if(this->sign())
 		ans = -ans;
 	return ans;
 }
 
 //some lojic operations
 bool operator==(const strflt &x,const strflt &y){
-	if(x.is_0){
-		if(y.is_0)
+	if(x.is_0()){
+		if(y.is_0())
 			return true;
 		else if(y.index < 0 && -y.index >= strflt::deviation)
 			return true;
 		else
 			return false;
-	}else if(y.is_0){
+	}else if(y.is_0()){
 		if(x.index < 0 && -x.index >= strflt::deviation)
 			return true;
 		else
@@ -2484,7 +2479,7 @@ bool operator==(const strflt &x,const strflt &y){
 		return false;
 	}
 
-	if(x.sign != y.sign)
+	if(x.sign() != y.sign())
 		return false;
 
 	if(x.index != y.index)
@@ -2506,17 +2501,17 @@ bool operator!=(const strflt &x,const strflt &y){
 	return !(x == y);
 }
 bool operator>(const strflt &x,const strflt &y){
-	if(x.is_0){
-		if(y.is_0)
+	if(x.is_0()){
+		if(y.is_0())
 			return false;
 		else
-			return y.sign;
-	}else if(y.is_0){
-		return !x.sign;
+			return y.sign();
+	}else if(y.is_0()){
+		return !x.sign();
 	}
 
-	if(x.sign != y.sign)
-		return y.sign;
+	if(x.sign() != y.sign())
+		return y.sign();
 
 	if(x.index != y.index)
 		return (x.index > y.index);
@@ -2531,21 +2526,21 @@ bool operator>(const strflt &x,const strflt &y){
 	}
 	return false;
 
-	absRetBig: return !x.sign;
-	absRetSmall: return x.sign;
+	absRetBig: return !x.sign();
+	absRetSmall: return x.sign();
 }
 bool operator<(const strflt &x,const strflt &y){
-	if(x.is_0){
-		if(y.is_0)
+	if(x.is_0()){
+		if(y.is_0())
 			return false;
 		else
-			return !y.sign;
-	}else if(y.is_0){
-		return x.sign;
+			return !y.sign();
+	}else if(y.is_0()){
+		return x.sign();
 	}
 
-	if(x.sign != y.sign)
-		return x.sign;
+	if(x.sign() != y.sign())
+		return x.sign();
 
 	if(x.index != y.index)
 		return (x.index < y.index);
@@ -2560,8 +2555,8 @@ bool operator<(const strflt &x,const strflt &y){
 	}
 	return false;
 
-	absRetBig: return x.sign;
-	absRetSmall: return !x.sign;
+	absRetBig: return x.sign();
+	absRetSmall: return !x.sign();
 }
 bool operator>=(const strflt &x,const strflt &y){
 	return (x > y || x == y);
@@ -2575,8 +2570,8 @@ bool operator<=(const strflt &x,const strflt &y){
 //unsigned plus 
 strflt unsigned_plus(const strflt &in1,const strflt &in2){
 	strflt x = in1, y = in2;
-	x.sign = false;
-	y.sign = false;
+	x.sign() = false;
+	y.sign() = false;
 	
 	//buildmsg
 	unsigned char *ptr = (unsigned char*)malloc(strnum_inf);
@@ -2660,8 +2655,8 @@ strflt unsigned_plus(const strflt &in1,const strflt &in2){
 	}
 	strflt ans;
 	ans.clean();
-	ans.is_0 = false;
-	ans.sign = false;
+	ans.is_0() = false;
+	ans.sign() = false;
 	//solve index (msgtop <= pointbyte)
 	ans.index = 0;
 	for(int i=7;i>=0;i--){
@@ -2705,13 +2700,13 @@ strflt unsigned_plus(const strflt &in1,const strflt &in2){
 //unsigned subtract 
 strflt unsigned_subtract(const strflt &in1,const strflt &in2){
 	strflt x = in1, y = in2;
-	x.sign = false;
-	y.sign = false;
+	x.sign() = false;
+	y.sign() = false;
 	bool finsign = false;
 	if(x == y){
 		strflt _0;
 		_0.clean();
-		_0.is_0 = true;
+		_0.is_0() = true;
 		return _0;
 	}else if(x < y){
 		finsign = true;
@@ -2802,8 +2797,8 @@ strflt unsigned_subtract(const strflt &in1,const strflt &in2){
 	}
 	strflt ans;
 	ans.clean();
-	ans.is_0 = false;
-	ans.sign = finsign;
+	ans.is_0() = false;
+	ans.sign() = finsign;
 	//solve idx
 	ans.index = 0;
 	for(int i=7;i>=0;i--){
@@ -2846,17 +2841,17 @@ strflt unsigned_subtract(const strflt &in1,const strflt &in2){
 
 //plus
 strflt operator+(const strflt &x,const strflt &y){
-	if(x.is_0)
+	if(x.is_0())
 		return y;
-	if(y.is_0)
+	if(y.is_0())
 		return x;
-	if(x.sign != y.sign){
-		if(!x.sign)
+	if(x.sign() != y.sign()){
+		if(!x.sign())
 			return unsigned_subtract(x,y);
 		else
 			return -unsigned_subtract(x,y);
 	}else{
-		if(!x.sign)
+		if(!x.sign())
 			return unsigned_plus(x,y);
 		else
 			return -unsigned_plus(x,y);
@@ -2869,17 +2864,17 @@ void operator+=(strflt &x,const strflt &y){
 
 //subtract
 strflt operator-(const strflt &x,const strflt &y){
-	if(x.is_0)
+	if(x.is_0())
 		return -y;
-	if(y.is_0)
+	if(y.is_0())
 		return x;
-	if(x.sign == y.sign){
-		if(!x.sign)
+	if(x.sign() == y.sign()){
+		if(!x.sign())
 			return unsigned_subtract(x,y);
 		else
 			return -unsigned_subtract(x,y);
 	}else{
-		if(!x.sign)
+		if(!x.sign())
 			return unsigned_plus(x,y);
 		else
 			return -unsigned_plus(x,y);
@@ -2892,15 +2887,15 @@ void operator-=(strflt &x,const strflt &y){
 
 //multy
 strflt operator*(const strflt &in1,const strflt &in2){
-	if(in1.is_0 || in2.is_0){
+	if(in1.is_0() || in2.is_0()){
 		strflt _0;
 		_0 = 0.0;
 		return _0;
 	}
-	bool finsign = (in1.sign != in2.sign);
+	bool finsign = (in1.sign() != in2.sign());
 	strflt x = in1, y = in2;
-	x.sign = false;
-	y.sign = false;
+	x.sign() = false;
+	y.sign() = false;
 	if(x.lenth < y.lenth)
 		swap(x,y);
 	
@@ -2994,8 +2989,8 @@ strflt operator*(const strflt &in1,const strflt &in2){
 	}
 	strflt ans;
 	ans.clean();
-	ans.is_0 = false;
-	ans.sign = finsign;
+	ans.is_0() = false;
+	ans.sign() = finsign;
 	int needbit = 0;
 	//solve idx and lenth
 	for(int i=7;i>=0;i--){
@@ -3033,18 +3028,18 @@ void operator*=(strflt &x,const strflt &y){
 
 //devide
 strflt operator/(const strflt &in1,const strflt &in2){
-	if(in2.is_0)
+	if(in2.is_0())
 		error(5);
-	if(in1.is_0){
+	if(in1.is_0()){
 		strflt _0;
 		_0 = 0.0;
 		return _0;
 	}
 
-	bool finsign = (in1.sign != in2.sign);
+	bool finsign = (in1.sign() != in2.sign());
 	strflt x = in1, y = in2;
-	x.sign = false;
-	y.sign = false;
+	x.sign() = false;
+	y.sign() = false;
 
 	//buildmsg
 	byte *ptr = (byte*)malloc(strnum_inf);
@@ -3168,8 +3163,8 @@ strflt operator/(const strflt &in1,const strflt &in2){
 	
 	strflt ans;
 	ans.clean();
-	ans.sign = finsign;
-	ans.is_0 = false;
+	ans.sign() = finsign;
+	ans.is_0() = false;
 	int beginbyte;
 	int needbit;
 	//solve index
