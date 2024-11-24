@@ -4,6 +4,9 @@ using namespace std;
 using namespace xxx;
 
 //this file can teach you how to use strnum.h , you can also research by your self
+//You should compile this file together with strnum.cpp/strnum.lib/strnum.dll
+//Like this : g++ main.cpp strnum.cpp -o main.exe
+//code=utf-8::打OI的小朋友们注意了,如果用Dev-Cpp编译,要在编译选项中加上strnum.cpp
 
 static void printAll(strint *x){
 	printf("lenth : %d\n",x->lenth);
@@ -31,8 +34,7 @@ static void printAll(strflt *x){
 
 int main(){
 	isErrorOpen = true;
-#if 1
-#if 1
+#if 0
 	//strint test
 	strint a,b;
 	char mode = getchar();
@@ -47,17 +49,17 @@ int main(){
 	else {printf("ERRORMODE!");return 0;}
 	printAll(&a);
 	return 0;
-#else
+#endif
+#if 0
 	//iostream test
 	int b,c;
 	strint a;
 	cin >> b >> a >> c;
-	cout << endl << b << endl << strnum_io2.operator[](a) << endl << strnum_io8[a] 
-		<< endl << a << endl << strnum_io16[a] << endl << c << endl;
+	cout << endl << b << endl << strnum_io2.operator()(a) << endl << strnum_io8(a) 
+		<< endl << a << endl << strnum_io16(a) << endl << c << endl;
 	return 0;
 #endif
 	////////////////////////////////////////////////////////////////////////////////////////////
-#else
 #if 1
 	//strflt test
 	char chr = getchar();
@@ -80,8 +82,13 @@ int main(){
 		c = a * b;
 		break;
 	case '/':
+		try{
 		c = a / b;
 		break;
+		}catch(int x){
+			printf("There are some Error : %d\n",x);
+			exit(0);
+		}
 	default:
 		printf("errormode!\n");
 		return 0;
@@ -91,8 +98,8 @@ int main(){
 	printf("c : \n");
 	printAll(&c);
 	return 0;
-#else
-#if 1
+#endif
+#if 0
 	//iterator test
 	strint x;
 	x.gain();
@@ -101,20 +108,31 @@ int main(){
 	}
 	printf("\n");
 	return 0;
-#else
+#endif
+#if 0
 	//bitaddress test
 	strint x,y;
 	x.gain();
 	y.gain();
 	for(int i=y.lenth-1;i>=0;i--)
 		for(int j=7;j>=0;j--)
-			x(i,j) = (bool)y(i,j);
-	cout << endl << strnum_io2[x] << endl;
-	if(x(0,7))
+			x[{i,j}] = y[{i,j}];
+	cout << endl << strnum_io2(x) << endl;
+	if(x[{0,7}])
 		printf("TRUE__________\n");
 	else
 		printf("FALSE_________\n");
 #endif
+#if 0
+	int k[55],q[55];
+	strint a(k),b(q);
+	a.gain();
+	b.gain();
+	a += b;
+	a.soutln();
+	strint c;
+	printf("%d %d %d\n",a.__status,b.__status,c.__status);
+	cout << sizeof(strnum) << ' ' << sizeof(strint) << ' ' << sizeof(strflt) << endl;
 #endif
-#endif
+	return 0;
 }
